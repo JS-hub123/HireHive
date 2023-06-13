@@ -4,6 +4,9 @@ import cryptography
 import openai as openai
 from cryptography.fernet import Fernet
 import os
+import PyPDF2
+import pymongo
+from bson import Binary
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.metrics import dp
@@ -21,6 +24,9 @@ from kivy.core.window import Window
 from kivy.uix.dropdown import DropDown
 from kivy.graphics import Color, Rectangle
 from kivy.uix.image import Image
+from pymongo import MongoClient
+
+
 
 Builder.load_string('''
 <Button>:
@@ -46,8 +52,16 @@ employer_encryption_key = b'n0MJHLrCBcoJL-yKXUZzQr-K8N82K76rsnOL49BjAxc='
 employer_cipher_suite = Fernet(employer_encryption_key)
 print(employer_encryption_key)
 
-openai.organization = 'org-GS1jnza5dXJ2rdOzG6Z9BsGT'
-openai.api_key = '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'
+openai.organization = 'org-PLZGvfWZoeTMMSMLUGNOSudn'
+openai.api_key = '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'
+
+# connect to MongoDB
+client = MongoClient('mongodb://localhost:27017')
+db = client['jobseeker_db']
+employer_collection = db['employer']
+employee_collection = db['employee']
+pdf_collection = db['pdf_resume']
+
 
 class RBACManager:
     roles = {
@@ -523,6 +537,14 @@ class SignupJobSeekerScreen(Screen):
         encrypted_employee_password = cipher_suite.encrypt(
             password_employee.encode('utf-8'))
 
+        # create an employee object to be inserted into mongodb
+        employee = {
+            "email":base64.b64encode(encrypted_employee_email).decode('utf-8'),
+            "password":base64.b64encode(encrypted_employee_password).decode('utf-8')
+        }
+
+        employee_collection.insert_one(employee)
+
         if email_employee == '' or password_employee == '':
             self.error_label.text = 'Please enter email and password.'
         else:
@@ -623,6 +645,18 @@ class SignupEmployerScreen(Screen):
         self.rect.size = self.size
 
     def continue_signup(self, instance):
+        def is_email_registered(email):
+            with open('employer_credentials.txt', 'r') as file:
+                lines = file.readlines()
+                for i in range(0, len(lines), 3):
+                    if len(lines[i].split(': ')) >= 2:
+                        encrypted_email = lines[i].split(': ')[1].strip()
+                        decrypted_email = employer_cipher_suite.decrypt(
+                            base64.b64decode(encrypted_email.encode())).decode('utf-8')
+                        if decrypted_email == email:
+                            return True
+            return False
+
         email_employer = self.email_input.text
         password_employer = self.password_input.text
 
@@ -634,16 +668,24 @@ class SignupEmployerScreen(Screen):
         if email_employer == '' or password_employer == '':
             self.error_label.text = 'Please enter email and password.'
         else:
-            if re.match(r"[^@]+@[^@]+\.[^@]+", email_employer):
-                # Create a file and write the email and password to it
-                with open('employer_credentials.txt', 'a') as file:
-                    file.write(
-                        f"Encrypted Employer Email: {base64.b64encode(encrypted_employer_email).decode('utf-8')}\n")
-                    file.write(
-                        f"Encrypted Employer Password: {base64.b64encode(encrypted_employer_password).decode('utf-8')}\n\n")
-                screen_manager.current = 'moreinfo2'
-            else:
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", email_employer):
                 self.error_label.text = 'Please enter a valid email.'
+            else:
+                # Check if the email address already exists
+                if is_email_registered(email_employer):
+                    self.error_label.text = 'Email address already registered.'
+                else:
+                    # Create a file and write the email and password to it
+                    with open('employer_credentials.txt', 'a') as file:
+                        file.write(
+                            f"Encrypted Employer Email: {base64.b64encode(encrypted_employer_email).decode('utf-8')}\n")
+                        file.write(
+                            f"Encrypted Employer Password: {base64.b64encode(encrypted_employer_password).decode('utf-8')}\n\n")
+
+                    screen_manager.current = 'moreinfo2'
+                    self.email_input.text = ""
+                    self.password_input.text = ""
+                    self.error_label.text = ""
 
     def Login_account(self, instance):
         screen_manager.current = 'login1'
@@ -656,6 +698,9 @@ class AImatchingSystemScreen(Screen):
         with self.canvas:
             Color(238/255, 233/255, 218/255)  # Set the background color
             self.rect = Rectangle(pos=self.pos, size=self.size)
+
+        # Connect to MongoDB and insert the document into the collection
+
 
         self.AI_label = Label(
             text='AI Resume Matching System',
@@ -752,10 +797,17 @@ class AImatchingSystemScreen(Screen):
         if filename:
             pdf_path = filename[0]
             self.file_label.text = f"Selected PDF: {pdf_path}"
+
+            # Connect to MongoDB and insert the document into the collection
+            document = {'pdf_path': pdf_path}
+            pdf_collection.insert_one(document)
         else:
             self.error_label.text = "No PDF selected"
 
-    def continue_signup(self, instance):
+
+
+
+    def continue_signup(self, instance,):
         job_title = self.jobtitle_input.text
         location = self.location_input.text
         filepath = self.file_label.text
@@ -767,6 +819,7 @@ class AImatchingSystemScreen(Screen):
             self.location_input.text = ""
             self.file_label.text = ""
             self.error_label.text = ""
+
 
 class CompanyDetailsScreen(Screen):
     def __init__(self, **kwargs):
@@ -1317,12 +1370,18 @@ class JobPostingScreen(Screen):
         self.rect.size = self.size
 
     def post_job(self, instance):
+        employer = self.employer
         job_title = self.job_title_input.text
         location = self.location_input.text
         job_type = self.job_type_input.text
         num_employees = self.num_employees_input.text
         salary = self.salary_input.text
         job_description = self.job_desc_input.text
+
+        job_data = {
+            'job_title' : job_title,
+
+        }
 
         # Do something with the job details (e.g., save to a database, display a confirmation message, etc.)
         print(job_title, location, job_type,num_employees,salary,job_description)
@@ -1336,9 +1395,6 @@ class JobPostingScreen(Screen):
         self.job_desc_input.text = ''
 
         # Optionally, navigate to a different screen after posting the job
-
-
-
 
 
 class ChatBotScreen(Screen):
