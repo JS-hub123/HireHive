@@ -21,6 +21,8 @@ from kivy.core.window import Window
 from kivy.uix.dropdown import DropDown
 from kivy.graphics import Color, Rectangle
 from kivy.uix.image import Image
+from pymongo import MongoClient
+
 
 Builder.load_string('''
 <Button>:
@@ -46,8 +48,11 @@ employer_encryption_key = b'n0MJHLrCBcoJL-yKXUZzQr-K8N82K76rsnOL49BjAxc='
 employer_cipher_suite = Fernet(employer_encryption_key)
 print(employer_encryption_key)
 
-openai.organization = 'org-GS1jnza5dXJ2rdOzG6Z9BsGT'
-openai.api_key = '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'
+# connect to MongoDB
+client = MongoClient('mongodb://127.0.0.1:27017')
+db = client['jobseeker_db']
+employer_collection = db['employer']
+employee_collection = db['employee']
 
 class RBACManager:
     roles = {
@@ -522,6 +527,14 @@ class SignupJobSeekerScreen(Screen):
             email_employee.encode('utf-8'))
         encrypted_employee_password = cipher_suite.encrypt(
             password_employee.encode('utf-8'))
+        
+        # create an employee object to be inserted into mongodb
+        employee = {
+            "email":base64.b64encode(encrypted_employee_email).decode('utf-8'),
+            "password":base64.b64encode(encrypted_employee_password).decode('utf-8')
+        }
+
+        employee_collection.insert_one(employee)
 
         if email_employee == '' or password_employee == '':
             self.error_label.text = 'Please enter email and password.'
@@ -630,6 +643,14 @@ class SignupEmployerScreen(Screen):
             email_employer.encode('utf-8'))
         encrypted_employer_password = employer_cipher_suite.encrypt(
             password_employer.encode('utf-8'))
+        
+        # create an employer object to be inserted into mongodb
+        employer = {
+            "email":base64.b64encode(encrypted_employer_email).decode('utf-8'),
+            "password":base64.b64encode(encrypted_employer_password).decode('utf-8')
+        }
+
+        employer_collection.insert_one(employer)
 
         if email_employer == '' or password_employer == '':
             self.error_label.text = 'Please enter email and password.'
