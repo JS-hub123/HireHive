@@ -798,14 +798,31 @@ class AImatchingSystemScreen(Screen):
             pdf_path = filename[0]
             self.file_label.text = f"Selected PDF: {pdf_path}"
 
+            # Extract text from the PDF file
+            extracted_text = self.extract_text_from_pdf(pdf_path)
+
+            # Store the extracted text in the database
+            document = {
+                'pdf_path': pdf_path,
+                'extracted_text': extracted_text
+            }
+            pdf_collection.insert_one(document)
+
             # Connect to MongoDB and insert the document into the collection
             document = {'pdf_path': pdf_path}
             pdf_collection.insert_one(document)
         else:
             self.error_label.text = "No PDF selected"
 
-
-
+    def extract_text_from_pdf(self, pdf_path):
+        with open(pdf_path, 'rb') as file:
+            reader = PyPDF2.PdfFileReader(file)
+            num_pages = reader.numPages
+            text = ""
+            for page_num in range(num_pages):
+                page = reader.getPage(page_num)
+                text += page.extractText()
+            return text
 
     def continue_signup(self, instance,):
         job_title = self.jobtitle_input.text
