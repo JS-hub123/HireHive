@@ -808,20 +808,17 @@ class AImatchingSystemScreen(Screen):
             }
             pdf_collection.insert_one(document)
 
-            # Connect to MongoDB and insert the document into the collection
-            document = {'pdf_path': pdf_path}
-            pdf_collection.insert_one(document)
         else:
             self.error_label.text = "No PDF selected"
 
     def extract_text_from_pdf(self, pdf_path):
         with open(pdf_path, 'rb') as file:
-            reader = PyPDF2.PdfFileReader(file)
-            num_pages = reader.numPages
+            reader = PyPDF2.PdfReader(file)
+            num_pages = len(reader.pages)
             text = ""
-            for page_num in range(num_pages):
-                page = reader.getPage(page_num)
-                text += page.extractText()
+            for page_number in range(num_pages):
+                page = reader.pages[page_number]
+                text += page.extract_text()
             return text
 
     def continue_signup(self, instance,):
