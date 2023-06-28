@@ -5,6 +5,7 @@ import openai as openai
 from cryptography.fernet import Fernet
 import os
 import PyPDF2
+from config import encryption_key, employer_encryption_key
 import pymongo
 from bson import Binary
 from kivy.app import App
@@ -25,6 +26,7 @@ from kivy.uix.dropdown import DropDown
 from kivy.graphics import Color, Rectangle
 from kivy.uix.image import Image
 from pymongo import MongoClient
+from kivy.uix.dropdown import DropDown
 
 
 
@@ -44,11 +46,9 @@ Builder.load_string('''
 class Button(Button):
     pass
 
-encryption_key = b'pEBMpd7ZkQ1hlXBPeGApYIojdpZyPqy8B_3De4UEYPY='
 cipher_suite = Fernet(encryption_key)
 print(encryption_key)
 
-employer_encryption_key = b'n0MJHLrCBcoJL-yKXUZzQr-K8N82K76rsnOL49BjAxc='
 employer_cipher_suite = Fernet(employer_encryption_key)
 print(employer_encryption_key)
 
@@ -280,7 +280,7 @@ class EmployerLoginScreen(Screen):
             self.email_input.bind(text=self.clear_error_message)
             self.password_input.bind(text=self.clear_error_message)
         else:
-            if role == "user":
+            if role == "employer":
                 screen_manager.current = 'homepage2'
                 self.email_input.text = ""
                 self.password_input.text = ""
@@ -682,7 +682,7 @@ class SignupEmployerScreen(Screen):
                         file.write(
                             f"Encrypted Employer Password: {base64.b64encode(encrypted_employer_password).decode('utf-8')}\n\n")
 
-                    screen_manager.current = 'moreinfo2'
+                    screen_manager.current = 'homepage2'
                     self.email_input.text = ""
                     self.password_input.text = ""
                     self.error_label.text = ""
@@ -712,27 +712,47 @@ class AImatchingSystemScreen(Screen):
         )
         self.add_widget(self.AI_label)
 
-        self.jobtitle_input = TextInput(
-            hint_text='Job Title or Keyword',
+        # Create the job title dropdown
+        jobtitle_dropdown = DropDown()
+
+        # Add options to the job title dropdown
+        jobtitle_options = ['Software Engineer', 'Data Analyst', 'Project Manager']
+        for option in jobtitle_options:
+            btn = Button(text=option, size_hint_y=None, height=40)
+            btn.bind(on_release=lambda btn: jobtitle_dropdown.select(btn.text))
+            jobtitle_dropdown.add_widget(btn)
+
+        self.jobtitle_button = Button(
+            text='Select a Job Title',
             size_hint=(0.65, 0.08),
             pos_hint={'center_x': 0.5, 'center_y': 0.7},
             font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
         )
-        self.add_widget(self.jobtitle_input)
+        self.jobtitle_button.bind(on_release=jobtitle_dropdown.open)
+        jobtitle_dropdown.bind(on_select=lambda instance, x: setattr(self.jobtitle_button, 'text', x))
 
-        self.location_input = TextInput(
-            hint_text='City/Town, Country or Post Code',
+        self.add_widget(self.jobtitle_button)
+
+        # Create the location dropdown
+        location_dropdown = DropDown()
+
+        # Add options to the location dropdown
+        location_options = ['New York', 'London', 'Paris']
+        for option in location_options:
+            btn = Button(text=option, size_hint_y=None, height=40)
+            btn.bind(on_release=lambda btn: location_dropdown.select(btn.text))
+            location_dropdown.add_widget(btn)
+
+        self.location_button = Button(
+            text='Select a Location',
             size_hint=(0.65, 0.08),
             pos_hint={'center_x': 0.5, 'center_y': 0.6},
             font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
         )
-        self.add_widget(self.location_input)
+        self.location_button.bind(on_release=location_dropdown.open)
+        location_dropdown.bind(on_select=lambda instance, x: setattr(self.location_button, 'text', x))
+
+        self.add_widget(self.location_button)
 
         self.upload_button = Button(
             text='Upload PDF',
@@ -822,113 +842,17 @@ class AImatchingSystemScreen(Screen):
             return text
 
     def continue_signup(self, instance,):
-        job_title = self.jobtitle_input.text
-        location = self.location_input.text
+        job_title = self.jobtitle_button.text
+        location = self.location_button.text
         filepath = self.file_label.text
         if job_title == '' or location == '' or filepath == "":
             self.error_label.text = 'Please enter Job Title, Location and upload your Resume.'
         else:
             screen_manager.current = 'homepage1'
-            self.jobtitle_input.text = ""
-            self.location_input.text = ""
+            self.jobtitle_button.text = ""
+            self.location_button.text = ""
             self.file_label.text = ""
             self.error_label.text = ""
-
-
-class CompanyDetailsScreen(Screen):
-    def __init__(self, **kwargs):
-        super(CompanyDetailsScreen, self).__init__(**kwargs)
-        with self.canvas:
-            Color(238/255, 233/255, 218/255)  # Set the background color
-            self.rect = Rectangle(pos=self.pos, size=self.size)
-
-        self.company_label = Label(
-            text='Enter Company Details',
-            font_size=70,
-            size_hint=(0.8, 0.2),
-            pos_hint={'center_x': 0.5, 'center_y': 0.9},
-            font_name='Dacherry',
-            color = (0,0,0,1),
-        )
-        self.add_widget(self.company_label)
-
-        self.company_name_input = TextInput(
-            hint_text='Company Name',
-            size_hint=(0.75, 0.1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.8},
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-        )
-        self.add_widget(self.company_name_input)
-
-        self.location_input = TextInput(
-            hint_text='Location',
-            size_hint=(0.75, 0.1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.7},
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-        )
-        self.add_widget(self.location_input)
-
-        self.size_input = TextInput(
-            hint_text='Size of Company',
-            size_hint=(0.75, 0.1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.6},
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-        )
-        self.add_widget(self.size_input)
-
-        self.description_input = TextInput(
-            hint_text='Company Description',
-            size_hint=(0.75, 0.3),
-            pos_hint={'center_x': 0.5, 'center_y': 0.4},
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            multiline=True,
-        )
-        self.add_widget(self.description_input)
-
-        self.error_label = Label(
-            text='',
-            size_hint=(0.8, None),
-            height=dp(60),
-            color=(1, 0, 0, 1),  # Set the color to red
-            halign='center',
-            pos_hint={'center_x': 0.5, 'center_y': 0.2},
-            font_name='Arial',
-        )
-        self.add_widget(self.error_label)
-
-        self.submit_button = Button(
-            text='Submit',
-            size_hint=(0.3, 0.07),
-            pos_hint={'center_x': 0.5, 'center_y': 0.1},
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.submit_button.bind(on_press=self.submit_company_details)
-        self.add_widget(self.submit_button)
-
-    def on_size(self, *args):
-        self.rect.size = self.size
-
-    def submit_company_details(self, instance):
-        company_name = self.company_name_input.text
-        location = self.location_input.text
-        size = self.size_input.text
-        description = self.description_input.text
-
-        if company_name == "" or location == "" or size == "" or description == "":
-            self.error_label.text = 'Please fill in all the details.'
-        else:
-            # Do something with the entered details, e.g. save to database or display a message
-            print(f'Company Name: {company_name}\nLocation: {location}\nSize: {size}\nDescription: {description}')
-            screen_manager.current = 'homepage2'
-
 
 class JobseekerHomePage(Screen):
     def __init__(self, **kwargs):
@@ -954,15 +878,6 @@ class JobseekerHomePage(Screen):
             color = (1,1,1,1),
         )
         self.add_widget(self.title_label)
-
-        # Add the search bar
-        self.search_button = Button(
-            text='Search for a job',
-            size_hint=(0.8, 0.1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.75},
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.add_widget(self.search_button)
 
         # Add the suggested job list
         self.suggested_jobs_label = Label(
@@ -1011,7 +926,6 @@ class JobseekerHomePage(Screen):
             pos_hint={'center_x': 0.3, 'center_y': 0.07},
             font_name='Glossy Sheen Shine DEMO',
         )
-        self.search_button.bind(on_press=self.search)
         self.add_widget(self.saved_button)
 
         self.chatbot_button = Button(
@@ -1046,9 +960,6 @@ class JobseekerHomePage(Screen):
 
     def chatbot(self, instance):
         screen_manager.current = 'chatbot1'
-
-    def search(self, instance):
-        screen_manager.current = 'search'
 
     def me(self,instance):
         screen_manager.current= 'profile1'
@@ -1142,15 +1053,15 @@ class EmployerHomePage(Screen):
         )
         self.navigation_layout.add_widget(self.saved_button)
 
-        # Post button
-        self.post_button = Button(
-            text='Post Job',
+        # Link button
+        self.link_button = Button(
+            text='Link',
             size_hint=(0.2, 1),
             pos_hint={'center_x': 0.5, 'center_y': 0.5},
             font_name='Glossy Sheen Shine DEMO',
         )
-        self.navigation_layout.add_widget(self.post_button)
-        self.post_button.bind(on_press=self.post_job)
+        self.navigation_layout.add_widget(self.link_button)
+        self.link_button.bind(on_press=self.link_account)
 
 
         # Notification button
@@ -1189,23 +1100,25 @@ class EmployerHomePage(Screen):
     def me(self,instance):
         screen_manager.current= 'profile2'
 
-    def post_job(self,instance):
-        screen_manager.current='postjob'
+    def link_account(self,instance):
+        screen_manager.current='linkAcc'
 
-class JobPostingScreen(Screen):
+class LinkAccScreen(Screen):
     def __init__(self, **kwargs):
-        super(JobPostingScreen, self).__init__(**kwargs)
+        super(LinkAccScreen, self).__init__(**kwargs)
         with self.canvas:
-            Color(238/255, 233/255, 218/255)  # Set the background color
+            Color(238 / 255, 233 / 255, 218 / 255)  # Set the background color
             self.rect = Rectangle(pos=self.pos, size=self.size)
+
+        self.bind(pos=self.update_rect, size=self.update_rect)
 
         self.text_color = (0, 0, 0, 1)
 
         self.title_label = Label(
-            text='Post a Job',
+            text='Link Accounts',
             color=self.text_color,
-            font_size=30,
-            pos=(Window.width/2, Window.height - 100),
+            font_size=100,
+            pos_hint={'center_x': 0.5, 'top': 0.8},
             size_hint=(None, None),
             size=(300, 50),
             halign='center',
@@ -1214,201 +1127,51 @@ class JobPostingScreen(Screen):
         )
         self.add_widget(self.title_label)
 
-        self.job_title_label = Label(
-            text='Job Title:',
+        self.button1 = Button(
+            text='Link LinkedIn',
             color=self.text_color,
-            font_size=20,
-            pos=(50, Window.height - 200),
-            size_hint=(None, None),
-            size=(150, 30),
-            halign='left',
-            valign='middle',
-            font_name='Glossy Sheen Shine DEMO',
+            pos_hint={'center_x': 0.5, 'center_y': 0.6},
+            size_hint=(0.3, 0.1),
         )
-        self.add_widget(self.job_title_label)
+        self.add_widget(self.button1)
 
-        self.job_title_input = TextInput(
-            hint_text='Enter job title',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            font_size=16,
-            pos=(200, Window.height - 200),
-            size_hint=(None, None),
-            size=(300, 30)
+        self.image1 = Image(source='linkedin.png',
+                           pos_hint={'center_x': 0.4, 'center_y': 0.6},
+                           size_hint=(0.07,0.07),
         )
-        self.add_widget(self.job_title_input)
+        self.add_widget(self.image1)
 
-        self.location_label = Label(
-            text='Location:',
+
+        self.button2 = Button(
+            text='Link JobStreet',
             color=self.text_color,
-            font_name='Arial',
-            font_size=20,
-            pos=(50, Window.height - 300),
-            size_hint=(None, None),
-            size=(150, 30),
-            halign='left',
-            valign='middle'
+            pos_hint={'center_x': 0.5, 'center_y': 0.4},
+            size_hint=(0.3, 0.1),
         )
-        self.add_widget(self.location_label)
+        self.add_widget(self.button2)
 
-        self.location_input = TextInput(
-            hint_text='Enter location',
-            font_name='Arial',
-            font_size=16,
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            pos=(200, Window.height - 300),
-            size_hint=(None, None),
-            size=(300, 30)
+        self.image2 = Image(source='jobstreet.png',
+                            pos_hint={'center_x': 0.4, 'center_y': 0.4},
+                            size_hint=(0.07, 0.07),
+                            )
+        self.add_widget(self.image2)
+
+        self.return_button = Button(
+            text='Return',
+            size_hint=(0.2, 0.08),
+            pos_hint={'x': 0.02, 'top': 0.98}
         )
-        self.add_widget(self.location_input)
+        self.return_button.bind(on_press=self.return_to_home)
+        self.add_widget(self.return_button)
 
-        self.job_type_label = Label(
-            text='Job Type:',
-            font_name='Arial',
-            color=self.text_color,
-            font_size=20,
-            pos=(50, Window.height - 400),
-            size_hint=(None, None),
-            size=(150, 30),
-            halign='left',
-            valign='middle'
-        )
-        self.add_widget(self.job_type_label)
-
-        self.job_type_input = TextInput(
-            hint_text='Enter job type',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            font_size=16,
-            pos=(200, Window.height - 400),
-            size_hint=(None, None),
-            size=(300, 30)
-        )
-        self.add_widget(self.job_type_input)
-
-        self.num_employees_label = Label(
-            text='Number of Employees:',
-            font_name='Arial',
-            color=self.text_color,
-            font_size=20,
-            pos=(50, Window.height - 500),
-            size_hint=(None, None),
-            size=(250, 30),
-            halign='left',
-            valign='middle'
-        )
-        self.add_widget(self.num_employees_label)
-
-        self.num_employees_input = TextInput(
-            hint_text='Enter number of employees',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            font_size=16,
-            pos=(300, Window.height - 500),
-            size_hint=(None, None),
-            size=(200, 30)
-        )
-        self.add_widget(self.num_employees_input)
-
-        self.salary_label = Label(
-            text='Salary:',
-            color=self.text_color,
-            font_name='Arial',
-            font_size=20,
-            pos=(50, Window.height - 600),
-            size_hint=(None, None),
-            size=(150, 30),
-            halign='left',
-            valign='middle'
-        )
-        self.add_widget(self.salary_label)
-
-        self.salary_input = TextInput(
-            hint_text='Enter salary',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            font_size=16,
-            pos=(200, Window.height - 600),
-            size_hint=(None, None),
-            size=(300, 30)
-        )
-        self.add_widget(self.salary_input)
-
-        self.job_desc_label = Label(
-            text='Job Description:',
-            color=self.text_color,
-            font_name='Arial',
-            font_size=20,
-            pos=(50, Window.height - 700),
-            size_hint=(None, None),
-            size=(200, 30),
-            halign='left',
-            valign='middle'
-        )
-        self.add_widget(self.job_desc_label)
-
-        self.job_desc_input = TextInput(
-            hint_text='Enter job description',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            font_size=16,
-            pos=(250, Window.height - 700),
-            size_hint=(None, None),
-            size=(250, 100)
-        )
-        self.add_widget(self.job_desc_input)
-
-        self.post_button = Button(
-            text='Post',
-            font_name='Arial',
-            pos=(Window.width/2 - 50, 50),
-            size_hint=(None, None),
-            size=(100, 40),
-        )
-        self.add_widget(self.post_button)
-        self.post_button.bind(on_press=self.post_job)
-
-    def on_size(self, *args):
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
         self.rect.size = self.size
 
-    def post_job(self, instance):
-        employer = self.employer
-        job_title = self.job_title_input.text
-        location = self.location_input.text
-        job_type = self.job_type_input.text
-        num_employees = self.num_employees_input.text
-        salary = self.salary_input.text
-        job_description = self.job_desc_input.text
-
-        job_data = {
-            'job_title' : job_title,
-
-        }
-
-        # Do something with the job details (e.g., save to a database, display a confirmation message, etc.)
-        print(job_title, location, job_type,num_employees,salary,job_description)
+    def return_to_home(self, *args):
         screen_manager.current = 'homepage2'
-        # Clear the input fields
-        self.job_title_input.text = ''
-        self.location_input.text = ''
-        self.job_type_input.text = ''
-        self.num_employees_input.text = ''
-        self.salary_input.text = ''
-        self.job_desc_input.text = ''
+        pass
 
-        # Optionally, navigate to a different screen after posting the job
 
 
 class ChatBotScreen(Screen):
@@ -1496,68 +1259,68 @@ class ChatBotScreen(Screen):
         sm = self.parent
         sm.current = 'homepage1'
 
-class SearchPage(Screen):
-    def __init__(self, **kwargs):
-        super(SearchPage, self).__init__(**kwargs)
-        with self.canvas:
-            Color(238 / 255, 233 / 255, 218 / 255)  # Set the background color
-            self.rect = Rectangle(pos=self.pos, size=self.size)
-        self.cols = 2
-
-        # Create a button to return to homepage
-        self.home_button = Button(
-            text='Return to homepage',
-            size_hint=(0.2, 0.1),
-            pos_hint={'x': 0.025, 'y': 0.85},
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.home_button.bind(on_press=self.return_homepage)
-        self.add_widget(self.home_button)
-
-        # Create a text input widget for the job title
-        self.job_title_input = TextInput(
-            hint_text='Enter job title',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            size_hint=(0.8, 0.1),
-            pos_hint={'x': 0.1, 'y': 0.75},
-        )
-        self.add_widget(self.job_title_input)
-
-        # Create a text input widget for the location
-        self.location_input = TextInput(
-            hint_text='Enter location',
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            size_hint=(0.8, 0.1),
-            pos_hint={'x': 0.1, 'y': 0.65},
-        )
-        self.add_widget(self.location_input)
-
-        # Create the search button
-        self.search_button = Button(
-            text='Search',
-            font_name='Glossy Sheen Shine DEMO',
-            size_hint=(0.4, 0.1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.4},
-        )
-        self.search_button.bind(on_press=self.search)
-        self.add_widget(self.search_button)
-
-    def on_size(self, *args):
-        self.rect.size = self.size
-
-    def return_homepage(self, instance):
-        screen_manager.current = 'homepage1'
-
-    def search(self, instance):
-        job_title = self.job_title_input.text
-        location = self.location_input.text
-        print(f'Searching for jobs with title "{job_title}" in location "{location}"...')
+# class SearchPage(Screen):
+#     def __init__(self, **kwargs):
+#         super(SearchPage, self).__init__(**kwargs)
+#         with self.canvas:
+#             Color(238 / 255, 233 / 255, 218 / 255)  # Set the background color
+#             self.rect = Rectangle(pos=self.pos, size=self.size)
+#         self.cols = 2
+#
+#         # Create a button to return to homepage
+#         self.home_button = Button(
+#             text='Return to homepage',
+#             size_hint=(0.2, 0.1),
+#             pos_hint={'x': 0.025, 'y': 0.85},
+#             font_name='Glossy Sheen Shine DEMO',
+#         )
+#         self.home_button.bind(on_press=self.return_homepage)
+#         self.add_widget(self.home_button)
+#
+#         # Create a text input widget for the job title
+#         self.job_title_input = TextInput(
+#             hint_text='Enter job title',
+#             font_name='Arial',
+#             background_color=(217 / 255, 217 / 255, 217 / 255, 1),
+#             background_active="",
+#             background_normal="",
+#             size_hint=(0.8, 0.1),
+#             pos_hint={'x': 0.1, 'y': 0.75},
+#         )
+#         self.add_widget(self.job_title_input)
+#
+#         # Create a text input widget for the location
+#         self.location_input = TextInput(
+#             hint_text='Enter location',
+#             font_name='Arial',
+#             background_color=(217 / 255, 217 / 255, 217 / 255, 1),
+#             background_active="",
+#             background_normal="",
+#             size_hint=(0.8, 0.1),
+#             pos_hint={'x': 0.1, 'y': 0.65},
+#         )
+#         self.add_widget(self.location_input)
+#
+#         # Create the search button
+#         self.search_button = Button(
+#             text='Search',
+#             font_name='Glossy Sheen Shine DEMO',
+#             size_hint=(0.4, 0.1),
+#             pos_hint={'center_x': 0.5, 'center_y': 0.4},
+#         )
+#         self.search_button.bind(on_press=self.search)
+#         self.add_widget(self.search_button)
+#
+#     def on_size(self, *args):
+#         self.rect.size = self.size
+#
+#     def return_homepage(self, instance):
+#         screen_manager.current = 'homepage1'
+#
+#     def search(self, instance):
+#         job_title = self.job_title_input.text
+#         location = self.location_input.text
+#         print(f'Searching for jobs with title "{job_title}" in location "{location}"...')
 
 class ProfilePage(Screen):
     def __init__(self, **kwargs):
@@ -1829,15 +1592,14 @@ class MyApp(App):
         screen_manager.add_widget(SignupJobSeekerScreen(name='signup1'))
         screen_manager.add_widget(SignupEmployerScreen(name='signup2'))
         screen_manager.add_widget(AImatchingSystemScreen(name='moreinfo1'))
-        screen_manager.add_widget(CompanyDetailsScreen(name='moreinfo2'))
         screen_manager.add_widget(JobseekerHomePage(name='homepage1'))
         screen_manager.add_widget(EmployerHomePage(name='homepage2'))
         screen_manager.add_widget(ChatBotScreen(name='chatbot1'))
-        screen_manager.add_widget(SearchPage(name='search'))
+        # screen_manager.add_widget(SearchPage(name='search'))
         screen_manager.add_widget(ProfilePage(name='profile1'))
         screen_manager.add_widget(ComapanyProfilePage(name='profile2'))
         screen_manager.add_widget(NotificationScreen(name='noti1'))
-        screen_manager.add_widget(JobPostingScreen(name='postjob'))
+        screen_manager.add_widget(LinkAccScreen(name='linkAcc'))
 
         return screen_manager
 
