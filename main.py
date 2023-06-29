@@ -61,6 +61,7 @@ db = client['jobseeker_db']
 employer_collection = db['employer']
 employee_collection = db['employee']
 pdf_collection = db['pdf_resume']
+jobs = db['jobs']
 
 
 class RBACManager:
@@ -550,12 +551,15 @@ class SignupJobSeekerScreen(Screen):
         else:
             if re.match(r"[^@]+@[^@]+\.[^@]+", email_employee):
                 # Create a file and write the email and password to it
+                email = base64.b64encode(encrypted_employee_email).decode('utf-8')
                 with open('user_credentials.txt', 'a') as file:
                     file.write(
-                        f"Encrypted Employee Email: {base64.b64encode(encrypted_employee_email).decode('utf-8')}\n")
+                        f"Encrypted Employee Email: {email}\n")
                     file.write(
                         f"Encrypted Employee Password: {base64.b64encode(encrypted_employee_password).decode('utf-8')}\n\n")
                 screen_manager.current = 'moreinfo1'
+                moreinfo1_screen = screen_manager.get_screen('moreinfo1')
+                moreinfo1_screen.email = email
                 self.email_input.text = ""
                 self.password_input.text = ""
             else:
@@ -692,15 +696,12 @@ class SignupEmployerScreen(Screen):
 
 class AImatchingSystemScreen(Screen):
     pdf_path = ObjectProperty(None)
-
+    email =""
     def __init__(self, **kwargs):
         super(AImatchingSystemScreen, self).__init__(**kwargs)
         with self.canvas:
             Color(238/255, 233/255, 218/255)  # Set the background color
             self.rect = Rectangle(pos=self.pos, size=self.size)
-
-        # Connect to MongoDB and insert the document into the collection
-
 
         self.AI_label = Label(
             text='AI Resume Matching System',
@@ -716,9 +717,9 @@ class AImatchingSystemScreen(Screen):
         jobtitle_dropdown = DropDown()
 
         # Add options to the job title dropdown
-        jobtitle_options = ['Software Engineer', 'Data Analyst', 'Project Manager']
-        for option in jobtitle_options:
-            btn = Button(text=option, size_hint_y=None, height=40)
+        jobtitle_options = jobs.distinct('job_title')
+        for job in jobtitle_options:
+            btn = Button(text=job, size_hint_y=None, height=40)
             btn.bind(on_release=lambda btn: jobtitle_dropdown.select(btn.text))
             jobtitle_dropdown.add_widget(btn)
 
@@ -737,7 +738,7 @@ class AImatchingSystemScreen(Screen):
         location_dropdown = DropDown()
 
         # Add options to the location dropdown
-        location_options = ['New York', 'London', 'Paris']
+        location_options = jobs.distinct('location')
         for option in location_options:
             btn = Button(text=option, size_hint_y=None, height=40)
             btn.bind(on_release=lambda btn: location_dropdown.select(btn.text))
@@ -822,11 +823,11 @@ class AImatchingSystemScreen(Screen):
             extracted_text = self.extract_text_from_pdf(pdf_path)
 
             # Store the extracted text in the database
-            document = {
-                'pdf_path': pdf_path,
-                'extracted_text': extracted_text
-            }
-            pdf_collection.insert_one(document)
+            email = self.email
+            employee_collection.update_one({"email": email},
+                                           {"$set":{'pdf_path': pdf_path,
+                                                    'extracted_text': extracted_text}
+                                            })
 
         else:
             self.error_label.text = "No PDF selected"
@@ -845,9 +846,14 @@ class AImatchingSystemScreen(Screen):
         job_title = self.jobtitle_button.text
         location = self.location_button.text
         filepath = self.file_label.text
+        email = self.email
         if job_title == '' or location == '' or filepath == "":
             self.error_label.text = 'Please enter Job Title, Location and upload your Resume.'
         else:
+            employee_collection.update_one({"email": email},
+                                           {"$set": {'job_title': job_title,
+                                                     'location': location}
+                                            })
             screen_manager.current = 'homepage1'
             self.jobtitle_button.text = ""
             self.location_button.text = ""
@@ -895,8 +901,8 @@ class JobseekerHomePage(Screen):
         self.job_list_layout.bind(minimum_height=self.job_list_layout.setter('height'))
 
         # Create some example suggested jobs
-        jobs = ['Software Engineer', 'Data Analyst', 'Project Manager']
-        for i in jobs:
+        job = ['Software Engineer', 'Data Analyst', 'Project Manager']
+        for i in job:
             job_label = Button(
                 text= i,
                 size_hint=(1, None),
@@ -1012,9 +1018,10 @@ class EmployerHomePage(Screen):
         self.job_list_layout.bind(minimum_height=self.job_list_layout.setter('height'))
 
         # Create some example posted jobs
-        for i in range(10):
+        jobs = ['Software Engineer', 'Data Analyst', 'Project Manager']
+        for i in jobs:
             job_label = Button(
-                text=f'Job {i}',
+                text= i,
                 size_hint=(1, None),
                 height=40,
                 color = (0,0,0,1),
@@ -1045,20 +1052,12 @@ class EmployerHomePage(Screen):
         )
         self.navigation_layout.add_widget(self.home_button)
 
-        # Saved button
-        self.saved_button = Button(
-            text='Saved',
-            size_hint=(0.2, 1),
-            pos_hint={'center_x': 0.3, 'center_y': 0.5},
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.navigation_layout.add_widget(self.saved_button)
 
         # Link button
         self.link_button = Button(
             text='Link',
             size_hint=(0.2, 1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            pos_hint={'center_x': 0.3, 'center_y': 0.5},
             font_name='Glossy Sheen Shine DEMO',
         )
         self.navigation_layout.add_widget(self.link_button)
@@ -1069,7 +1068,7 @@ class EmployerHomePage(Screen):
         self.notification_button = Button(
             text='Notifications',
             size_hint=(0.2, 1),
-            pos_hint={'center_x': 0.7, 'center_y': 0.5},
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
             font_name='Glossy Sheen Shine DEMO',
         )
         self.navigation_layout.add_widget(self.notification_button)
@@ -1078,20 +1077,11 @@ class EmployerHomePage(Screen):
         self.me_button = Button(
             text='Me',
             size_hint=(0.2, 1),
-            pos_hint={'center_x': 0.9, 'center_y': 0.5},
+            pos_hint={'center_x': 0.7, 'center_y': 0.5},
             font_name='Glossy Sheen Shine DEMO',
         )
         self.me_button.bind(on_press=self.me)
         self.navigation_layout.add_widget(self.me_button)
-
-        # Chatbot button
-        self.chatbot_button = Button(
-            text='Chatbot',
-            size_hint=(0.1, 0.1),
-            pos_hint={'right': 1, 'center_y': 0.25},
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.add_widget(self.chatbot_button)
 
         self.add_widget(self.navigation_layout)
 
