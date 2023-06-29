@@ -895,9 +895,10 @@ class JobseekerHomePage(Screen):
         self.job_list_layout.bind(minimum_height=self.job_list_layout.setter('height'))
 
         # Create some example suggested jobs
-        for i in range(10):
+        jobs = ['Software Engineer', 'Data Analyst', 'Project Manager']
+        for i in jobs:
             job_label = Button(
-                text=f'Job {i}',
+                text= i,
                 size_hint=(1, None),
                 height=40,
                 font_name='Arial',
