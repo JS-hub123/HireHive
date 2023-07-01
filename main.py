@@ -22,7 +22,6 @@ from kivy.uix.popup import Popup
 from kivy.properties import ObjectProperty
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
-from kivy.uix.dropdown import DropDown
 from kivy.graphics import Color, Rectangle
 from kivy.uix.image import Image
 from pymongo import MongoClient
@@ -402,8 +401,8 @@ class EmployeeLoginScreen(Screen):
         self.rect.size = self.size
 
     def continue_login(self,instance):
-        email = self.email_input.text.strip()
-        password = self.password_input.text.strip()
+        email = self.email_input.text
+        password = self.password_input.text
 
         auth = authenticate_user()
         role = auth.authenticate(email, password)
@@ -416,6 +415,9 @@ class EmployeeLoginScreen(Screen):
             self.password_input.bind(text=self.clear_error_message)
         else:
             if role == "user":
+                screen_manager.current = 'update'
+                update_screen = screen_manager.get_screen('update')
+                update_screen.email = email
                 screen_manager.current = 'homepage1'
                 self.email_input.text = ""
                 self.password_input.text = ""
@@ -538,28 +540,28 @@ class SignupJobSeekerScreen(Screen):
         encrypted_employee_password = cipher_suite.encrypt(
             password_employee.encode('utf-8'))
 
-        # create an employee object to be inserted into mongodb
-        employee = {
-            "email":base64.b64encode(encrypted_employee_email).decode('utf-8'),
-            "password":base64.b64encode(encrypted_employee_password).decode('utf-8')
-        }
-
-        employee_collection.insert_one(employee)
-
         if email_employee == '' or password_employee == '':
             self.error_label.text = 'Please enter email and password.'
         else:
             if re.match(r"[^@]+@[^@]+\.[^@]+", email_employee):
                 # Create a file and write the email and password to it
-                email = base64.b64encode(encrypted_employee_email).decode('utf-8')
+
                 with open('user_credentials.txt', 'a') as file:
                     file.write(
-                        f"Encrypted Employee Email: {email}\n")
+                        f"Encrypted Employee Email: {base64.b64encode(encrypted_employee_email).decode('utf-8')}\n")
                     file.write(
                         f"Encrypted Employee Password: {base64.b64encode(encrypted_employee_password).decode('utf-8')}\n\n")
+                # create an employee object to be inserted into mongodb
+                employee = {
+                    "email": base64.b64encode(encrypted_employee_email).decode('utf-8'),
+                    "password": base64.b64encode(encrypted_employee_password).decode('utf-8')
+                }
+                employee_collection.insert_one(employee)
                 screen_manager.current = 'moreinfo1'
                 moreinfo1_screen = screen_manager.get_screen('moreinfo1')
-                moreinfo1_screen.email = email
+                moreinfo1_screen.email = email_employee
+                update_screen = screen_manager.get_screen('update')
+                update_screen.email = email_employee
                 self.email_input.text = ""
                 self.password_input.text = ""
             else:
@@ -669,6 +671,13 @@ class SignupEmployerScreen(Screen):
         encrypted_employer_password = employer_cipher_suite.encrypt(
             password_employer.encode('utf-8'))
 
+        employer = {
+            "email": base64.b64encode(encrypted_employer_email).decode('utf-8'),
+            "password": base64.b64encode(encrypted_employer_password).decode('utf-8')
+        }
+
+        employer_collection.insert_one(employer)
+
         if email_employer == '' or password_employer == '':
             self.error_label.text = 'Please enter email and password.'
         else:
@@ -714,14 +723,17 @@ class AImatchingSystemScreen(Screen):
         self.add_widget(self.AI_label)
 
         # Create the job title dropdown
-        jobtitle_dropdown = DropDown()
+        self.jobtitle_dropdown = DropDown()
 
         # Add options to the job title dropdown
-        jobtitle_options = jobs.distinct('job_title')
+        query = {'job_title': {'$ne': 'Select a Job Title'}}
+        projection = {'job_title': 1, '_id': 0}  # Include job_title field and exclude _id field
+        result = jobs.find(query, projection)
+        jobtitle_options = result.distinct('job_title')
         for job in jobtitle_options:
             btn = Button(text=job, size_hint_y=None, height=40)
-            btn.bind(on_release=lambda btn: jobtitle_dropdown.select(btn.text))
-            jobtitle_dropdown.add_widget(btn)
+            btn.bind(on_press=lambda btn: self.jobtitle_dropdown.select(btn.text))
+            self.jobtitle_dropdown.add_widget(btn)
 
         self.jobtitle_button = Button(
             text='Select a Job Title',
@@ -729,20 +741,23 @@ class AImatchingSystemScreen(Screen):
             pos_hint={'center_x': 0.5, 'center_y': 0.7},
             font_name='Arial',
         )
-        self.jobtitle_button.bind(on_release=jobtitle_dropdown.open)
-        jobtitle_dropdown.bind(on_select=lambda instance, x: setattr(self.jobtitle_button, 'text', x))
+        self.jobtitle_button.bind(on_press=self.jobtitle_dropdown.open)
+        self.jobtitle_dropdown.bind(on_select=lambda instance, x: setattr(self.jobtitle_button, 'text', x))
 
         self.add_widget(self.jobtitle_button)
 
         # Create the location dropdown
-        location_dropdown = DropDown()
+        self.location_dropdown = DropDown()
 
         # Add options to the location dropdown
-        location_options = jobs.distinct('location')
+        query = {'location': {'$ne': 'Select a Location'}}
+        projection = {'location': 1, '_id': 0}  # Include job_title field and exclude _id field
+        result = jobs.find(query, projection)
+        location_options = result.distinct('location')
         for option in location_options:
             btn = Button(text=option, size_hint_y=None, height=40)
-            btn.bind(on_release=lambda btn: location_dropdown.select(btn.text))
-            location_dropdown.add_widget(btn)
+            btn.bind(on_press=lambda btn: self.location_dropdown.select(btn.text))
+            self.location_dropdown.add_widget(btn)
 
         self.location_button = Button(
             text='Select a Location',
@@ -750,8 +765,8 @@ class AImatchingSystemScreen(Screen):
             pos_hint={'center_x': 0.5, 'center_y': 0.6},
             font_name='Arial',
         )
-        self.location_button.bind(on_release=location_dropdown.open)
-        location_dropdown.bind(on_select=lambda instance, x: setattr(self.location_button, 'text', x))
+        self.location_button.bind(on_press=self.location_dropdown.open)
+        self.location_dropdown.bind(on_select=lambda instance, x: setattr(self.location_button, 'text', x))
 
         self.add_widget(self.location_button)
 
@@ -825,10 +840,8 @@ class AImatchingSystemScreen(Screen):
             # Store the extracted text in the database
             email = self.email
             employee_collection.update_one({"email": email},
-                                           {"$set":{'pdf_path': pdf_path,
-                                                    'extracted_text': extracted_text}
+                                           {"$set":{'extracted_text': extracted_text}
                                             })
-
         else:
             self.error_label.text = "No PDF selected"
 
@@ -847,7 +860,7 @@ class AImatchingSystemScreen(Screen):
         location = self.location_button.text
         filepath = self.file_label.text
         email = self.email
-        if job_title == '' or location == '' or filepath == "":
+        if job_title == 'Select a Job Title' or location == 'Select a Location' or filepath == "":
             self.error_label.text = 'Please enter Job Title, Location and upload your Resume.'
         else:
             employee_collection.update_one({"email": email},
@@ -855,8 +868,8 @@ class AImatchingSystemScreen(Screen):
                                                      'location': location}
                                             })
             screen_manager.current = 'homepage1'
-            self.jobtitle_button.text = ""
-            self.location_button.text = ""
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
             self.file_label.text = ""
             self.error_label.text = ""
 
@@ -885,6 +898,16 @@ class JobseekerHomePage(Screen):
         )
         self.add_widget(self.title_label)
 
+        self.update_button = Button(
+            text = 'Update',
+            size_hint=(0.8, 0.1),
+            pos_hint={'center_x': 0.5, 'center_y': 0.8},
+            font_name='Glossy Sheen Shine DEMO',
+            color = (1,1,1,1),
+        )
+        self.update_button.bind(on_press=self.update)
+        self.add_widget(self.update_button)
+
         # Add the suggested job list
         self.suggested_jobs_label = Label(
             text='Suggested Jobs',
@@ -900,15 +923,19 @@ class JobseekerHomePage(Screen):
         self.job_list_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
         self.job_list_layout.bind(minimum_height=self.job_list_layout.setter('height'))
 
-        # Create some example suggested jobs
-        job = ['Software Engineer', 'Data Analyst', 'Project Manager']
-        for i in job:
+        # Retrieve all job titles
+        query = {}
+        projection = {'_id': 0, 'job_title': 1}
+        result = jobs.find(query, projection)
+        for document in result:
+            job_title = document['job_title']
             job_label = Button(
-                text= i,
+                text= job_title,
                 size_hint=(1, None),
                 height=40,
                 font_name='Arial',
             )
+            job_label.bind(on_release=lambda label: self.show_job_details(document))
             self.job_list_layout.add_widget(job_label)
 
         self.job_scrollview = ScrollView(
@@ -973,6 +1000,19 @@ class JobseekerHomePage(Screen):
 
     def notification(self,instance):
         screen_manager.current = 'noti1'
+
+    def update(self,instance):
+        screen_manager.current = 'update'
+
+    def show_job_details(self, job_data):
+        # Create an instance of the job details screen
+        job_details_screen = JobDetailsScreen(name='job_details')
+
+        # Pass the job data to the set_job_details method of the job details screen
+        job_details_screen.set_job_details(job_data)
+
+        # Switch to the job details screen
+        self.manager.current = 'job_details'
 
 
 class EmployerHomePage(Screen):
@@ -1250,68 +1290,236 @@ class ChatBotScreen(Screen):
         sm = self.parent
         sm.current = 'homepage1'
 
-# class SearchPage(Screen):
-#     def __init__(self, **kwargs):
-#         super(SearchPage, self).__init__(**kwargs)
-#         with self.canvas:
-#             Color(238 / 255, 233 / 255, 218 / 255)  # Set the background color
-#             self.rect = Rectangle(pos=self.pos, size=self.size)
-#         self.cols = 2
-#
-#         # Create a button to return to homepage
-#         self.home_button = Button(
-#             text='Return to homepage',
-#             size_hint=(0.2, 0.1),
-#             pos_hint={'x': 0.025, 'y': 0.85},
-#             font_name='Glossy Sheen Shine DEMO',
-#         )
-#         self.home_button.bind(on_press=self.return_homepage)
-#         self.add_widget(self.home_button)
-#
-#         # Create a text input widget for the job title
-#         self.job_title_input = TextInput(
-#             hint_text='Enter job title',
-#             font_name='Arial',
-#             background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-#             background_active="",
-#             background_normal="",
-#             size_hint=(0.8, 0.1),
-#             pos_hint={'x': 0.1, 'y': 0.75},
-#         )
-#         self.add_widget(self.job_title_input)
-#
-#         # Create a text input widget for the location
-#         self.location_input = TextInput(
-#             hint_text='Enter location',
-#             font_name='Arial',
-#             background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-#             background_active="",
-#             background_normal="",
-#             size_hint=(0.8, 0.1),
-#             pos_hint={'x': 0.1, 'y': 0.65},
-#         )
-#         self.add_widget(self.location_input)
-#
-#         # Create the search button
-#         self.search_button = Button(
-#             text='Search',
-#             font_name='Glossy Sheen Shine DEMO',
-#             size_hint=(0.4, 0.1),
-#             pos_hint={'center_x': 0.5, 'center_y': 0.4},
-#         )
-#         self.search_button.bind(on_press=self.search)
-#         self.add_widget(self.search_button)
-#
-#     def on_size(self, *args):
-#         self.rect.size = self.size
-#
-#     def return_homepage(self, instance):
-#         screen_manager.current = 'homepage1'
-#
-#     def search(self, instance):
-#         job_title = self.job_title_input.text
-#         location = self.location_input.text
-#         print(f'Searching for jobs with title "{job_title}" in location "{location}"...')
+class UpdateJobScreen(Screen):
+    pdf_path = ObjectProperty(None)
+    email = ""
+    def __init__(self, **kwargs):
+        super(UpdateJobScreen, self).__init__(**kwargs)
+        with self.canvas:
+            Color(238/255, 233/255, 218/255)  # Set the background color
+            self.rect = Rectangle(pos=self.pos, size=self.size)
+
+        self.AI_label = Label(
+            text='Update Job',
+            font_size=70,
+            size_hint=(0.8, 0.2),
+            pos_hint={'center_x': 0.5, 'center_y': 0.9},
+            font_name='SuperMario256',
+            color = (0,0,0,1),
+        )
+        self.add_widget(self.AI_label)
+
+        # Create the job title dropdown
+        self.jobtitle_dropdown = DropDown()
+        # Create a button for the specific title
+        jspecific_button = Button(text="Select a Job Title", size_hint_y=None, height=40)
+        jspecific_button.bind(on_release=lambda btn: self.jobtitle_dropdown.select("Select a Job Title"))
+        self.jobtitle_dropdown.add_widget(jspecific_button)
+
+        # Add options to the job title dropdown
+        jobtitle_options = jobs.distinct('job_title')
+        for job in jobtitle_options:
+            btn = Button(text=job, size_hint_y=None, height=40)
+            btn.bind(on_release=lambda btn: self.jobtitle_dropdown.select(btn.text))
+            self.jobtitle_dropdown.add_widget(btn)
+
+        self.jobtitle_button = Button(
+            text='Select a Job Title',
+            size_hint=(0.65, 0.08),
+            pos_hint={'center_x': 0.5, 'center_y': 0.7},
+            font_name='Arial',
+        )
+        self.jobtitle_button.bind(on_release=self.jobtitle_dropdown.open)
+        self.jobtitle_dropdown.bind(on_select=lambda instance, x: setattr(self.jobtitle_button, 'text', x))
+
+        self.add_widget(self.jobtitle_button)
+
+        # Create the location dropdown
+        self.location_dropdown = DropDown()
+        lspecific_button = Button(text="Select a Location", size_hint_y=None, height=40)
+        lspecific_button.bind(on_release=lambda btn: self.location_dropdown.select("Select a Location"))
+        self.location_dropdown.add_widget(lspecific_button)
+
+        # Add options to the location dropdown
+        location_options = jobs.distinct('location')
+        for option in location_options:
+            btn = Button(text=option, size_hint_y=None, height=40)
+            btn.bind(on_release=lambda btn: self.location_dropdown.select(btn.text))
+            self.location_dropdown.add_widget(btn)
+
+        self.location_button = Button(
+            text='Select a Location',
+            size_hint=(0.65, 0.08),
+            pos_hint={'center_x': 0.5, 'center_y': 0.6},
+            font_name='Arial',
+        )
+        self.location_button.bind(on_release=self.location_dropdown.open)
+        self.location_dropdown.bind(on_select=lambda instance, x: setattr(self.location_button, 'text', x))
+
+        self.add_widget(self.location_button)
+
+        self.upload_button = Button(
+            text='Upload PDF',
+            size_hint=(0.65, 0.07),
+            pos_hint={'center_x': 0.5, 'center_y': 0.45},
+            font_name='Glossy Sheen Shine DEMO',
+        )
+        self.upload_button.bind(on_press=self.show_file_chooser)
+        self.add_widget(self.upload_button)
+
+        self.file_label = Label(
+            text='',
+            size_hint=(0.8, None),
+            height=dp(60),
+            color=(0, 0, 0, 1),  # Set the color to black
+            halign='center',
+            pos_hint={'center_x': 0.5, 'center_y': 0.37},
+            font_name='Arial',
+        )
+        self.add_widget(self.file_label)
+
+        self.error_label = Label(
+            text='',
+            size_hint=(0.8, None),
+            height=dp(60),
+            color=(1, 0, 0, 1),  # Set the color to red
+            halign='center',
+            pos_hint={'center_x': 0.5, 'center_y': 0.3},
+            font_name='Arial',
+        )
+        self.add_widget(self.error_label)
+
+        self.continue_button = Button(
+            text="Save",
+            font_size=20,
+            size_hint=(0.2, 0.05),
+            pos_hint={'center_x': 0.5, 'center_y': 0.2},
+            font_name='Glossy Sheen Shine DEMO',
+        )
+        self.continue_button.bind(on_press=self.continue_signup)
+        self.add_widget(self.continue_button)
+
+    def on_size(self, *args):
+        self.rect.size = self.size
+
+    def show_file_chooser(self, instance):
+        content = BoxLayout(orientation='vertical')
+        file_chooser = FileChooserIconView()
+        file_chooser.path = os.getcwd()
+        content.add_widget(file_chooser)
+        popup = Popup(title='Select a PDF file', content=content, size_hint=(0.8, 0.8))
+        upload_button = Button(text='Upload', size_hint=(0.2, 0.1), font_name='Glossy Sheen Shine DEMO',)
+        upload_button.bind(on_press=lambda x: self.upload_pdf(file_chooser.path, file_chooser.selection))
+        content.add_widget(upload_button)
+        upload_button.bind(on_press=popup.dismiss)
+        close_button = Button(text='Close', size_hint=(0.2, 0.1),font_name='Glossy Sheen Shine DEMO',)
+        close_button.bind(on_press=popup.dismiss)
+        content.add_widget(close_button)
+        popup.open()
+
+    def upload_pdf(self, path, filename):
+        if filename:
+            pdf_path = filename[0]
+            self.file_label.text = pdf_path
+
+        else:
+            self.error_label.text = "No PDF selected"
+
+    def continue_signup(self, instance):
+        job_title = self.jobtitle_button.text
+        location = self.location_button.text
+        filepath = self.file_label.text
+        email = self.email
+        result = employee_collection.find({}, {"email": 1})
+        for obj in result:
+            encrypted_email = obj['email']
+            decrypted_email_bytes = base64.b64decode(encrypted_email)
+            decrypted_email = cipher_suite.decrypt(decrypted_email_bytes).decode('utf-8')
+            if decrypted_email == email:
+                object_id = obj['_id']
+                print(object_id)
+        if job_title == "Select a Job Title" and location != "Select a Location" and filepath != "":
+            extracted_text = self.extract_text_from_pdf(filepath)
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'job_title': job_title,
+                                                     'extracted_text': extracted_text}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+        elif job_title != "Select a Job Title" and location != "Select a Location" and filepath == "":
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'location': location,
+                                                     'job_title': job_title}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+        elif job_title != "Select a Job Title" and location == "Select a Location" and filepath != "":
+            extracted_text = self.extract_text_from_pdf(filepath)
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'location': location,
+                                                     'extracted_text': extracted_text}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+
+        elif job_title != "Select a Job Title" and location != "Select a Location" and filepath != "":
+            extracted_text = self.extract_text_from_pdf(filepath)
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'job_title': job_title,
+                                                     'location': location,
+                                                     'extracted_text': extracted_text}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+        elif job_title !='Select a Job Title' and location == "Select a Location" and filepath =="":
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'job_title': job_title}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+        elif location !='Select a Location' and job_title == "Select a Job Title" and filepath == "":
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'location': location}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+        elif filepath !='' and job_title == "Select a Job Title" and location == "Select a Location":
+            extracted_text = self.extract_text_from_pdf(filepath)
+            employee_collection.update_one({"_id": object_id},
+                                           {"$set": {'extracted_text': extracted_text}
+                                            })
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+        else:
+            screen_manager.current = 'homepage1'
+            self.jobtitle_button.text = "Select a Job Title"
+            self.location_button.text = "Select a Location"
+            self.file_label.text = ""
+
+
+    def extract_text_from_pdf(self, pdf_path):
+        with open(pdf_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            num_pages = len(reader.pages)
+            text = ""
+            for page_number in range(num_pages):
+                page = reader.pages[page_number]
+                text += page.extract_text()
+            return text
 
 class ProfilePage(Screen):
     def __init__(self, **kwargs):
@@ -1568,6 +1776,54 @@ class NotificationScreen(Screen):
     def go_to_homepage(self, instance):
         self.manager.current = "homepage1"
 
+class JobDetailsScreen(Screen):
+    def __init__(self, **kwargs):
+        super(JobseekerHomePage, self).__init__(**kwargs)
+        with self.canvas:
+            Color(238/255, 233/255, 218/255)  # Set the background color
+            self.rect = Rectangle(pos=self.pos, size=self.size)
+        job_title = self.job_title
+
+        self.job_detials_label = Label(
+            text='Job Details',
+            font_size=70,
+            size_hint=(0.8, 0.2),
+            pos_hint={'center_x': 0.5, 'center_y': 0.9},
+            font_name='SuperMario256',
+            color=(0, 0, 0, 1),
+        )
+        self.add_widget(self.AI_label)
+
+        self.job_title_label = Label(
+            text = "Job Title: " + job_title,
+            font_size = 60,
+            size_hint=(0.8, 0.1),
+            pos_hint={'center_x': 0.2, 'center_y': 0.6},
+            font_name='Arial',
+            color=(0, 0, 0, 1),
+        )
+        self.add_widget(self.job_title_label)
+
+        self.location_label = Label(
+            # text="Location: " + location,
+            font_size=60,
+            size_hint=(0.8, 0.1),
+            pos_hint={'center_x': 0.2, 'center_y': 0.5},
+            font_name='Arial',
+            color=(0, 0, 0, 1),
+        )
+        self.add_widget(self.location_label)
+
+        self.job_type_label = Label(
+            # text="Job Type: " + job_type,
+            font_size=60,
+            size_hint=(0.8, 0.1),
+            pos_hint={'center_x': 0.2, 'center_y': 0.4},
+            font_name='Arial',
+            color=(0, 0, 0, 1),
+        )
+        self.add_widget(self.job_type_label)
+
 
 class MyScreenManager(ScreenManager):
     pass
@@ -1586,7 +1842,7 @@ class MyApp(App):
         screen_manager.add_widget(JobseekerHomePage(name='homepage1'))
         screen_manager.add_widget(EmployerHomePage(name='homepage2'))
         screen_manager.add_widget(ChatBotScreen(name='chatbot1'))
-        # screen_manager.add_widget(SearchPage(name='search'))
+        screen_manager.add_widget(UpdateJobScreen(name='update'))
         screen_manager.add_widget(ProfilePage(name='profile1'))
         screen_manager.add_widget(ComapanyProfilePage(name='profile2'))
         screen_manager.add_widget(NotificationScreen(name='noti1'))
