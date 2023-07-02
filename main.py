@@ -1736,7 +1736,7 @@ class NotificationScreen(Screen):
 
         # Add a label for the screen title
         self.title_label = Label(
-            text="Notifications",
+            text="Notification",
             font_size=50,
             size_hint=(0.5, 0.1),
             pos_hint={'center_x': 0.5, 'center_y': 0.9},
