@@ -19,7 +19,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.label import Label
 from kivy.uix.filechooser import FileChooserIconView
 from kivy.uix.popup import Popup
-from kivy.properties import ObjectProperty
+from kivy.properties import ObjectProperty, StringProperty
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle
@@ -925,9 +925,10 @@ class JobseekerHomePage(Screen):
 
         # Retrieve all job titles
         query = {}
-        projection = {'_id': 0, 'job_title': 1}
+        projection = {'_id': 1, 'job_title': 1}
         result = jobs.find(query, projection)
         for document in result:
+            object_id = document['_id']
             job_title = document['job_title']
             job_label = Button(
                 text= job_title,
@@ -935,7 +936,7 @@ class JobseekerHomePage(Screen):
                 height=40,
                 font_name='Arial',
             )
-            job_label.bind(on_release=lambda label: self.show_job_details(document))
+            job_label.bind(on_release=lambda label, id = object_id: self.show_job_details(id))
             self.job_list_layout.add_widget(job_label)
 
         self.job_scrollview = ScrollView(
@@ -1004,15 +1005,9 @@ class JobseekerHomePage(Screen):
     def update(self,instance):
         screen_manager.current = 'update'
 
-    def show_job_details(self, job_data):
-        # Create an instance of the job details screen
-        job_details_screen = JobDetailsScreen(name='job_details')
-
-        # Pass the job data to the set_job_details method of the job details screen
-        job_details_screen.set_job_details(job_data)
-
-        # Switch to the job details screen
-        self.manager.current = 'job_details'
+    def show_job_details(self, job_id):
+        job_details_screen = JobDetailsScreen(collection_id= job_id)
+        screen_manager.current = 'jobdetails'
 
 
 class EmployerHomePage(Screen):
@@ -1777,12 +1772,15 @@ class NotificationScreen(Screen):
         self.manager.current = "homepage1"
 
 class JobDetailsScreen(Screen):
-    def __init__(self, **kwargs):
-        super(JobseekerHomePage, self).__init__(**kwargs)
+
+    def __init__(self, collection_id, **kwargs):
+        super(JobDetailsScreen, self).__init__(**kwargs)
+        self.collection_id = collection_id
         with self.canvas:
             Color(238/255, 233/255, 218/255)  # Set the background color
             self.rect = Rectangle(pos=self.pos, size=self.size)
-        job_title = self.job_title
+
+        self.bind(pos=self.update_rect, size=self.update_rect)
 
         self.job_detials_label = Label(
             text='Job Details',
@@ -1792,37 +1790,63 @@ class JobDetailsScreen(Screen):
             font_name='SuperMario256',
             color=(0, 0, 0, 1),
         )
-        self.add_widget(self.AI_label)
+        self.add_widget(self.job_detials_label)
 
-        self.job_title_label = Label(
-            text = "Job Title: " + job_title,
-            font_size = 60,
-            size_hint=(0.8, 0.1),
-            pos_hint={'center_x': 0.2, 'center_y': 0.6},
-            font_name='Arial',
-            color=(0, 0, 0, 1),
-        )
-        self.add_widget(self.job_title_label)
+        result = jobs.find_one({'_id': self.collection_id})
+        if result:
+            job_title = result['job_title']
+            location = result['location']
+            type = result['job_type']
+            salary = result['salary']
+            requirements = result['requirements']
 
-        self.location_label = Label(
-            # text="Location: " + location,
-            font_size=60,
-            size_hint=(0.8, 0.1),
-            pos_hint={'center_x': 0.2, 'center_y': 0.5},
-            font_name='Arial',
-            color=(0, 0, 0, 1),
-        )
-        self.add_widget(self.location_label)
+            self.job_title_label = Label(
+                text=f"Job Title: {job_title}",
+                font_size = 60,
+                size_hint=(0.8, 0.1),
+                pos_hint={'center_x': 0.2, 'center_y': 0.6},
+                font_name='Arial',
+                color=(0, 0, 0, 1),
+            )
+            self.add_widget(self.job_title_label)
+            print(job_title)
 
-        self.job_type_label = Label(
-            # text="Job Type: " + job_type,
-            font_size=60,
-            size_hint=(0.8, 0.1),
-            pos_hint={'center_x': 0.2, 'center_y': 0.4},
-            font_name='Arial',
-            color=(0, 0, 0, 1),
+            self.location_label = Label(
+                text='',
+                font_size=60,
+                size_hint=(0.8, 0.1),
+                pos_hint={'center_x': 0.2, 'center_y': 0.5},
+                font_name='Arial',
+                color=(0, 0, 0, 1),
+            )
+            self.add_widget(self.location_label)
+
+            self.job_type_label = Label(
+                text="",
+                font_size=60,
+                size_hint=(0.8, 0.1),
+                pos_hint={'center_x': 0.2, 'center_y': 0.4},
+                font_name='Arial',
+                color=(0, 0, 0, 1),
+            )
+            self.add_widget(self.job_type_label)
+
+        self.return_button = Button(
+            text='Return',
+            size_hint=(0.2, 0.08),
+            pos_hint={'x': 0.02, 'top': 0.98}
         )
-        self.add_widget(self.job_type_label)
+        self.return_button.bind(on_press=self.return_to_home)
+        self.add_widget(self.return_button)
+
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+    def return_to_home(self, *args):
+        screen_manager.current = 'homepage1'
+        pass
 
 
 class MyScreenManager(ScreenManager):
@@ -1847,6 +1871,7 @@ class MyApp(App):
         screen_manager.add_widget(ComapanyProfilePage(name='profile2'))
         screen_manager.add_widget(NotificationScreen(name='noti1'))
         screen_manager.add_widget(LinkAccScreen(name='linkAcc'))
+        screen_manager.add_widget(JobDetailsScreen(name='jobdetails', collection_id=''))
 
         return screen_manager
 
