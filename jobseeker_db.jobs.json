@@ -1,0 +1,50 @@
+[{
+  "_id": {
+    "$oid": "649d787c9777d9bf00fc9ad8"
+  },
+  "job_title": "Software Engineer",
+  "location": "London",
+  "requirements": [
+    "Python",
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "React"
+  ],
+  "salary": "RM2,000",
+  "job_type": "Internship"
+},
+{
+  "_id": {
+    "$oid": "649d79629777d9bf00fc9adb"
+  },
+  "job_title": "Data Analyst",
+  "location": "London",
+  "requirements": [
+    "Python",
+    "MySQL"
+  ]
+},
+{
+  "_id": {
+    "$oid": "649d797c9777d9bf00fc9adc"
+  },
+  "job_title": "Project Manager",
+  "location": "New York",
+  "requirements": [
+    "Data Analysis",
+    "Financial Analysis",
+    "Strategic Planning"
+  ]
+},
+{
+  "_id": {
+    "$oid": "649d79929777d9bf00fc9add"
+  },
+  "job_title": "Sales Executive",
+  "location": "Singapore",
+  "requirements": [
+    "Sales",
+    "Marketing"
+  ]
+}]
