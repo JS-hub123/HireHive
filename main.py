@@ -1,5 +1,7 @@
 import base64
 import re
+import shutil
+
 import cryptography
 import openai as openai
 from cryptography.fernet import Fernet
@@ -26,6 +28,8 @@ from kivy.graphics import Color, Rectangle
 from kivy.uix.image import Image
 from pymongo import MongoClient
 from kivy.uix.dropdown import DropDown
+import webbrowser
+
 
 
 
@@ -419,6 +423,8 @@ class EmployeeLoginScreen(Screen):
                 update_screen = screen_manager.get_screen('update')
                 update_screen.email = email
                 screen_manager.current = 'homepage1'
+                home_screen = screen_manager.get_screen('homepage1')
+                home_screen.email = email
                 self.email_input.text = ""
                 self.password_input.text = ""
                 self.email_input.bind(text=self.clear_error_message)
@@ -532,6 +538,17 @@ class SignupJobSeekerScreen(Screen):
         self.rect.size = self.size
 
     def continue_signup(self,instance):
+        def is_email_registered(email):
+            with open('user_credentials.txt', 'r') as file:
+                lines = file.readlines()
+                for i in range(0, len(lines), 3):
+                    if len(lines[i].split(': ')) >= 2:
+                        encrypted_email = lines[i].split(': ')[1].strip()
+                        decrypted_email = cipher_suite.decrypt(
+                            base64.b64decode(encrypted_email.encode())).decode('utf-8')
+                        if decrypted_email == email:
+                            return True
+            return False
         email_employee = self.email_input.text
         password_employee = self.password_input.text
 
@@ -543,29 +560,32 @@ class SignupJobSeekerScreen(Screen):
         if email_employee == '' or password_employee == '':
             self.error_label.text = 'Please enter email and password.'
         else:
-            if re.match(r"[^@]+@[^@]+\.[^@]+", email_employee):
-                # Create a file and write the email and password to it
-
-                with open('user_credentials.txt', 'a') as file:
-                    file.write(
-                        f"Encrypted Employee Email: {base64.b64encode(encrypted_employee_email).decode('utf-8')}\n")
-                    file.write(
-                        f"Encrypted Employee Password: {base64.b64encode(encrypted_employee_password).decode('utf-8')}\n\n")
-                # create an employee object to be inserted into mongodb
-                employee = {
-                    "email": base64.b64encode(encrypted_employee_email).decode('utf-8'),
-                    "password": base64.b64encode(encrypted_employee_password).decode('utf-8')
-                }
-                employee_collection.insert_one(employee)
-                screen_manager.current = 'moreinfo1'
-                moreinfo1_screen = screen_manager.get_screen('moreinfo1')
-                moreinfo1_screen.email = email_employee
-                update_screen = screen_manager.get_screen('update')
-                update_screen.email = email_employee
-                self.email_input.text = ""
-                self.password_input.text = ""
-            else:
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", email_employee):
                 self.error_label.text = 'Please enter a valid email.'
+            else:
+                if is_email_registered(email_employee):
+                    self.error_label.text = 'Email address already registered.'
+                else:
+                    with open('user_credentials.txt', 'a') as file:
+                        file.write(
+                            f"Encrypted Employee Email: {base64.b64encode(encrypted_employee_email).decode('utf-8')}\n")
+                        file.write(
+                            f"Encrypted Employee Password: {base64.b64encode(encrypted_employee_password).decode('utf-8')}\n\n")
+                    # create an employee object to be inserted into mongodb
+                    employee = {
+                        "email": base64.b64encode(encrypted_employee_email).decode('utf-8'),
+                        "password": base64.b64encode(encrypted_employee_password).decode('utf-8')
+                    }
+                    employee_collection.insert_one(employee)
+                    moreinfo1_screen = screen_manager.get_screen('moreinfo1')
+                    moreinfo1_screen.email = base64.b64encode(encrypted_employee_email).decode('utf-8')
+                    home_screen = screen_manager.get_screen('homepage1')
+                    home_screen.email = email_employee
+                    update_screen = screen_manager.get_screen('update')
+                    update_screen.email = email_employee
+                    screen_manager.current = 'moreinfo1'
+                    self.email_input.text = ""
+                    self.password_input.text = ""
 
     def Login_account(self,instance):
         screen_manager.current = 'login1'
@@ -875,11 +895,13 @@ class AImatchingSystemScreen(Screen):
 
 class JobseekerHomePage(Screen):
     def __init__(self, **kwargs):
+        self.job_list_layout = None
+        self.job_title = None
+        job_title = self.job_title
         super(JobseekerHomePage, self).__init__(**kwargs)
         with self.canvas:
-            Color(238/255, 233/255, 218/255)  # Set the background color
+            Color(238 / 255, 233 / 255, 218 / 255)  # Set the background color
             self.rect = Rectangle(pos=self.pos, size=self.size)
-
         bg_image = Image(
             source='pic1.jpeg',
             size_hint=(1, 10),
@@ -894,16 +916,16 @@ class JobseekerHomePage(Screen):
             size_hint=(1, 0.2),
             pos_hint={'center_x': 0.5, 'center_y': 0.9},
             font_name='SuperMario256',
-            color = (1,1,1,1),
+            color=(1, 1, 1, 1),
         )
         self.add_widget(self.title_label)
 
         self.update_button = Button(
-            text = 'Update',
+            text='Update',
             size_hint=(0.8, 0.1),
             pos_hint={'center_x': 0.5, 'center_y': 0.8},
             font_name='Glossy Sheen Shine DEMO',
-            color = (1,1,1,1),
+            color=(1, 1, 1, 1),
         )
         self.update_button.bind(on_press=self.update)
         self.add_widget(self.update_button)
@@ -915,44 +937,20 @@ class JobseekerHomePage(Screen):
             size_hint=(0.8, 0.1),
             pos_hint={'center_x': 0.2, 'center_y': 0.6},
             font_name='Glossy Sheen Shine DEMO',
-            color = (0,0,0,1),
+            color=(0, 0, 0, 1),
         )
         self.add_widget(self.suggested_jobs_label)
+        self.scroll_view
 
-        #Suggested job list
-        self.job_list_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
-        self.job_list_layout.bind(minimum_height=self.job_list_layout.setter('height'))
 
-        # Retrieve all job titles
-        query = {}
-        projection = {'_id': 1, 'job_title': 1}
-        result = jobs.find(query, projection)
-        for document in result:
-            object_id = document['_id']
-            job_title = document['job_title']
-            job_label = Button(
-                text= job_title,
-                size_hint=(1, None),
-                height=40,
-                font_name='Arial',
-            )
-            job_label.bind(on_release=lambda label, id = object_id: self.show_job_details(id))
-            self.job_list_layout.add_widget(job_label)
-
-        self.job_scrollview = ScrollView(
-            size_hint=(1, 0.4),
-            pos_hint={'center_x': 0.5, 'center_y': 0.35},
-        )
-        self.job_scrollview.add_widget(self.job_list_layout)
-        self.add_widget(self.job_scrollview)
-
-        # Add the home, saved, chatbot, notification, and me buttons
+        # Add the home, saved, enhancer, notification, and me buttons
         self.home_button = Button(
             text='Home',
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.1, 'center_y': 0.07},
             font_name='Glossy Sheen Shine DEMO',
         )
+        # self.home_button.bind(on_press=self.display_all)
         self.add_widget(self.home_button)
 
         self.saved_button = Button(
@@ -963,14 +961,14 @@ class JobseekerHomePage(Screen):
         )
         self.add_widget(self.saved_button)
 
-        self.chatbot_button = Button(
+        self.enhancer_button = Button(
             text='Enhancer',
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.5, 'center_y': 0.07},
             font_name='Glossy Sheen Shine DEMO',
         )
-        self.chatbot_button.bind(on_press=self.chatbot)
-        self.add_widget(self.chatbot_button)
+        self.enhancer_button.bind(on_press=self.enhancer)
+        self.add_widget(self.enhancer_button)
 
         self.notification_button = Button(
             text='Notifications',
@@ -990,25 +988,104 @@ class JobseekerHomePage(Screen):
         self.me_button.bind(on_press=self.me)
         self.add_widget(self.me_button)
 
+    def display_all(self, instance):
+        try:
+            email = self.email
+            print(email)
+            # Suggested job list
+            result = employee_collection.find({}, {"email": 1, "job_title": 1})
+            for obj in result:
+                encrypted_email = obj['email']
+                job = obj['job_title']
+                decrypted_email_bytes = base64.b64decode(encrypted_email)
+                decrypted_email = cipher_suite.decrypt(decrypted_email_bytes).decode('utf-8')
+                print(decrypted_email)
+                if decrypted_email == email:
+                    print(decrypted_email)
+                    print(job)
+                    self.job_title = job # Store job_title as instance variable
+
+
+            home_screen = JobseekerHomePage(job_title=self.job_title)
+            home_screen.email = email
+        except Exception as e:
+            print("Error:", e)
+
     def on_size(self, *args):
         self.rect.size = self.size
+        self.display_all(None)  # Call display_all to retrieve the job_title
+        self.scroll_view()  # Pass the job_title to the scroll_view method
 
-    def chatbot(self, instance):
+    def scroll_view(self):
+
+        job_title = self.job_title
+        # Suggested job list
+        self.job_list_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.job_list_layout.bind(minimum_height=self.job_list_layout.setter('height'))
+
+        self.job_list_layout.clear_widgets()
+        if job_title == "Software Engineer" or job_title == "Data Analyst":
+            job_titles = ["Software Engineer", "Data Analyst"]
+            query = {'job_title': {'$in': job_titles}}
+            result = jobs.find(query)
+            for document in result:
+                obj_id = document['_id']
+                jobtitle = document['job_title']
+                job_url = document['url']
+                job_label = Button(
+                    text=jobtitle,
+                    size_hint=(1, None),
+                    height=40,
+                    font_name='Arial',
+                )
+                print(jobtitle)
+                job_label.bind(on_release=lambda label, url=job_url: self.open_job_url(url))
+                self.job_list_layout.add_widget(job_label)
+        else:
+            job_titles = ["Sales Executive", "Project Manager"]
+            query = {'job_title': {'$in': job_titles}}
+            result = jobs.find(query)
+            for document in result:
+                obj_id = document['_id']
+                jobtitle = document['job_title']
+                job_url = document['url']
+                job_label = Button(
+                    text=jobtitle,
+                    size_hint=(1, None),
+                    height=40,
+                    font_name='Arial',
+                )
+                print(job_title)
+                job_label.bind(on_release=lambda label, url=job_url: self.open_job_url(url))
+                self.job_list_layout.add_widget(job_label)
+
+        self.job_scrollview = ScrollView(
+            size_hint=(1, 0.4),
+            pos_hint={'center_x': 0.5, 'center_y': 0.35},
+        )
+        self.job_scrollview.add_widget(self.job_list_layout)
+        self.add_widget(self.job_scrollview)
+
+    def open_job_url(instance, url):
+        webbrowser.open(url)
+
+    def enhancer(self, instance):
         screen_manager.current = 'chatbot1'
 
-    def me(self,instance):
-        screen_manager.current= 'profile1'
+    def me(self, instance):
+        screen_manager.current = 'profile1'
 
-    def notification(self,instance):
+    def notification(self, instance):
         screen_manager.current = 'noti1'
 
-    def update(self,instance):
+    def update(self, instance):
         screen_manager.current = 'update'
 
-    def show_job_details(self, job_id):
-        job_details_screen = JobDetailsScreen(collection_id= job_id)
-        screen_manager.current = 'jobdetails'
-
+    def clear_data(self):
+        # Reset the necessary variables or data in the class
+        self.job_list_layout.clear_widgets()
+        self.job_title = None
+        self.email = None
 
 class EmployerHomePage(Screen):
     def __init__(self, **kwargs):
@@ -1237,32 +1314,31 @@ class ResumeEnhancerScreen(Screen):
         self.add_widget(self.history_label)
         self.add_widget(self.select_button)
 
-    # def process_resume(self, selected_file):
-    #         try:
-    #             jobscan_api_key = 'YOUR_JOBSCAN_API_KEY'
-    #             url = 'https://api.jobscan.co/v1/scan'
-    #             headers = {
-    #                 'Content-Type': 'application/json',
-    #                 'Authorization': 'Bearer ' + jobscan_api_key,
-    #             }
-    #             with open(selected_file, 'rb') as file:
-    #                 files = {'resume': file}
-    #                 response = requests.post(url, headers=headers, files=files)
-    #                 response_json = response.json()
-    #
-    #             location = response_json['location']
-    #             skills = response_json['skills']
-    #
-    #             output_file = selected_file.replace('.pdf', '_enhanced.txt')
-    #             with open(output_file, 'w') as file:
-    #                 file.write('Location: {}\n'.format(location))
-    #                 file.write('Skills:\n')
-    #                 file.write('\n'.join(skills))
-    #
-    #             self.history_label.text = "Resume processed successfully. Suggestions saved in {}".format(output_file)
-    #         except Exception as e:
-    #            self.history_label.text = "An error occurred: {}".format(str(e))
+    def process_resume(self, selected_file):
+        try:
+            # Read the selected PDF resume
+            with open(selected_file, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                text = ''
+                for page in pdf_reader.pages:
+                    text += page.extract_text()
 
+            # # Create a new PDF file with the extracted text
+            # output_file = selected_file.replace('.pdf', '_enhanced.pdf')
+            # with open(output_file, 'wb') as file:
+            #     pdf_writer = PyPDF2.PdfWriter()
+            #     pdf_writer.addPage(PyPDF2.pdf.PageObject.create_blank())
+            #     pdf_writer.getPage(0).extract_text = lambda: text
+            #     pdf_writer.write(file)
+
+            self.history_label.text = "Resume processed successfully!"
+        except Exception as e:
+            self.history_label.text = "Error occurred while processing the resume: " + str(e)
+
+        # Copy the processed file
+        src_file = r"/Users/jiaosai/Downloads/Kirby AndersonResumeComputerScience_enhanced1.pdf_enhanced.pdf"
+        dst_file = r"/Users/jiaosai/Downloads/Kirby AndersonResumeComputerScience_enhanced1.pdf_enhanced.pdf"
+        shutil.copy(src_file, dst_file)
     def process_resume(self, selected_file):
         try:
             # Read the selected PDF resume
@@ -1601,15 +1677,6 @@ class ProfilePage(Screen):
         )
         self.add_widget(self.preferences_button)
 
-        self.upload_button = Button(
-            text='Upload PDF',
-            size_hint=(0.3, 0.07),
-            pos_hint={'center_x': 0.5, 'center_y': 0.45},
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.upload_button.bind(on_press=self.show_file_chooser)
-        self.add_widget(self.upload_button)
-
         # Create a button for sign out
         self.signout_button = Button(
             text='Sign Out',
@@ -1628,29 +1695,25 @@ class ProfilePage(Screen):
         sm = self.parent
         sm.current = 'homepage1'
 
-    def sign_out(self,instance):
-        screen_manager.current = 'login1'
+    def sign_out(self, instance):
+        # Clear all data and reset the app to its initial state
+        self.clear_data()
+        self.reset_app()
+        jobseeker_homepage = self.manager.get_screen('homepage1')
+        jobseeker_homepage.clear_data()
 
-    def show_file_chooser(self, instance):
-        content = BoxLayout(orientation='vertical')
-        file_chooser = FileChooserIconView()
-        file_chooser.path = os.getcwd()
-        content.add_widget(file_chooser)
-        popup = Popup(title='Select a PDF file', content=content, size_hint=(0.8, 0.8))
-        upload_button = Button(text='Upload', font_name='Glossy Sheen Shine DEMO',size_hint=(0.2, 0.1))
-        upload_button.bind(on_press=lambda x: self.upload_pdf(file_chooser.path, file_chooser.selection))
-        content.add_widget(upload_button)
-        close_button = Button(text='Close', font_name='Glossy Sheen Shine DEMO', size_hint=(0.2, 0.1))
-        close_button.bind(on_press=popup.dismiss)
-        content.add_widget(close_button)
-        popup.open()
+    def clear_data(self):
+        # Clear any data or variables you want to reset
+        self.languages_dropdown.select('English')
 
-    def upload_pdf(self, path, filename):
-        if filename:
-            pdf_path = os.path.join(path, filename[0])
-            print(f"Selected PDF: {pdf_path}")
-        else:
-            print("No PDF selected")
+
+    def reset_app(self):
+        # Reset the app to its initial state
+        app = App.get_running_app()
+        app.reset_app()
+        app.root.current = 'login1'
+
+
 
 class ComapanyProfilePage(Screen):
     def __init__(self, **kwargs):
@@ -1881,12 +1944,13 @@ class MyApp(App):
         global screen_manager
         screen_manager = MyScreenManager()
 
+        homepage_screen = JobseekerHomePage(name='homepage1')
         screen_manager.add_widget(EmployeeLoginScreen(name='login1'))
         screen_manager.add_widget(EmployerLoginScreen(name='login2'))
         screen_manager.add_widget(SignupJobSeekerScreen(name='signup1'))
         screen_manager.add_widget(SignupEmployerScreen(name='signup2'))
         screen_manager.add_widget(AImatchingSystemScreen(name='moreinfo1'))
-        screen_manager.add_widget(JobseekerHomePage(name='homepage1'))
+        screen_manager.add_widget(homepage_screen)
         screen_manager.add_widget(EmployerHomePage(name='homepage2'))
         screen_manager.add_widget(ResumeEnhancerScreen(name='chatbot1'))
         screen_manager.add_widget(UpdateJobScreen(name='update'))
@@ -1900,5 +1964,6 @@ class MyApp(App):
 
 
 if __name__ == '__main__':
-    MyApp().run()
+    my_app = MyApp()
+    my_app.run()
 
