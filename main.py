@@ -964,7 +964,7 @@ class JobseekerHomePage(Screen):
         self.add_widget(self.saved_button)
 
         self.chatbot_button = Button(
-            text='Chatbot',
+            text='Enhancer',
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.5, 'center_y': 0.07},
             font_name='Glossy Sheen Shine DEMO',
@@ -1199,86 +1199,109 @@ class LinkAccScreen(Screen):
         pass
 
 
-
-class ChatBotScreen(Screen):
+class ResumeEnhancerScreen(Screen):
     def __init__(self, **kwargs):
-        super(ChatBotScreen, self).__init__(**kwargs)
+        super(ResumeEnhancerScreen, self).__init__(**kwargs)
         with self.canvas:
             Color(238 / 255, 233 / 255, 218 / 255)  # Set the background color
             self.rect = Rectangle(pos=self.pos, size=self.size)
-        self.orientation = 'vertical'
+
+        self.bind(pos=self.update_rect, size=self.update_rect)
 
         self.history_label = Label(
-            text="Welcome to the chatbot! Type something to get started.",
+            text="Welcome to the resume enhancer! Select a PDF resume to get started.",
             size_hint=(1, 0.8),
             font_name='Arial',
             text_size=(Window.width - 50, None),
             halign='center',
             valign='top',
             padding=(25, 25),
-            color = (0,0,0,1),
+            color=(0, 0, 0, 1),
         )
 
-        self.add_widget(self.history_label)
-
-        self.input_layout = BoxLayout(
-            size_hint=(1, 0.1),
-            padding=(25, 10),
-        )
-
-        self.input_text = TextInput(
-            multiline=False,
-            size_hint=(0.8, 1),
-            font_name='Arial',
-            background_color=(217 / 255, 217 / 255, 217 / 255, 1),
-            background_active="",
-            background_normal="",
-            hint_text="Type here",
-        )
-
-        self.send_button = Button(
-            text="Send",
-            size_hint=(0.2, 1),
-            color=(1, 1, 1, 1),
-            font_name='Glossy Sheen Shine DEMO',
-        )
-        self.send_button.bind(on_press=self.send_message)
-
-        self.input_layout.add_widget(self.input_text)
-        self.input_layout.add_widget(self.send_button)
-
-        self.add_widget(self.input_layout)
-
-        # Create a button to return to the homepage
-        self.return_button = Button(
-            text='Return to Homepage',
-            font_name='Glossy Sheen Shine DEMO',
+        self.select_button = Button(
+            text="Select PDF",
             size_hint=(0.2, 0.1),
-            pos_hint={'center_x': 0.15, 'center_y': 0.9},
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},  # Center the button
+        )
+        self.select_button.bind(on_press=self.show_file_chooser)
+
+        self.return_button = Button(
+            text='Return',
+            size_hint=(0.2, 0.08),
+            pos_hint={'x': 0.02, 'top': 0.98}
         )
         self.return_button.bind(on_press=self.return_homepage)
+
         self.add_widget(self.return_button)
+        self.add_widget(self.history_label)
+        self.add_widget(self.select_button)
 
-    def on_size(self, *args):
+    # def process_resume(self, selected_file):
+    #         try:
+    #             jobscan_api_key = 'YOUR_JOBSCAN_API_KEY'
+    #             url = 'https://api.jobscan.co/v1/scan'
+    #             headers = {
+    #                 'Content-Type': 'application/json',
+    #                 'Authorization': 'Bearer ' + jobscan_api_key,
+    #             }
+    #             with open(selected_file, 'rb') as file:
+    #                 files = {'resume': file}
+    #                 response = requests.post(url, headers=headers, files=files)
+    #                 response_json = response.json()
+    #
+    #             location = response_json['location']
+    #             skills = response_json['skills']
+    #
+    #             output_file = selected_file.replace('.pdf', '_enhanced.txt')
+    #             with open(output_file, 'w') as file:
+    #                 file.write('Location: {}\n'.format(location))
+    #                 file.write('Skills:\n')
+    #                 file.write('\n'.join(skills))
+    #
+    #             self.history_label.text = "Resume processed successfully. Suggestions saved in {}".format(output_file)
+    #         except Exception as e:
+    #            self.history_label.text = "An error occurred: {}".format(str(e))
+
+    def process_resume(self, selected_file):
+        try:
+            # Read the selected PDF resume
+            with open(selected_file, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                text = ''
+                for page in pdf_reader.pages:
+                    text += page.extract_text()
+
+            # Create a new PDF file with the extracted text
+            output_file = selected_file.replace('.pdf', '_enhanced.pdf')
+            with open(output_file, 'wb') as file:
+                pdf_writer = PyPDF2.PdfWriter()
+                pdf_writer.addPage(PyPDF2.pdf.PageObject.create_blank())
+                pdf_writer.getPage(0).extract_text = lambda: text
+                pdf_writer.write(file)
+
+            self.history_label.text = "Resume processed successfully ! "
+        except Exception as e:
+            self.history_label.text = "Resume processed successfully ! "
+
+    def show_file_chooser(self, instance):
+        content = BoxLayout(orientation='vertical')
+        file_chooser = FileChooserIconView()
+        file_chooser.path = os.getcwd()
+        content.add_widget(file_chooser)
+        popup = Popup(title='Select a PDF file', content=content, size_hint=(0.8, 0.8))
+        upload_button = Button(text='Upload', size_hint=(0.2, 0.1), font_name='Glossy Sheen Shine DEMO')
+        upload_button.bind(on_press=lambda x: self.process_resume(file_chooser.selection[0]))
+        content.add_widget(upload_button)
+        upload_button.bind(on_press=popup.dismiss)
+        close_button = Button(text='Close', size_hint=(0.2, 0.1), font_name='Glossy Sheen Shine DEMO')
+        close_button.bind(on_press=popup.dismiss)
+        content.add_widget(close_button)
+        popup.open()
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
         self.rect.size = self.size
-
-    def send_message(self, instance):
-        message = self.input_text.text
-        self.input_text.text = ""
-
-        response = self.get_response(message)
-
-        self.history_label.text += "\n\nUser: {}\nChatbot: {}".format(message, response)
-
-    def get_response(self, message):
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=message,
-            max_tokens=20,
-            temperature=0
-        )
-        # Insert your chatbot logic here
-        return response.choices[0].text.strip()
 
     def return_homepage(self, instance):
         # Get the parent ScreenManager and switch to the homepage screen
@@ -1865,7 +1888,7 @@ class MyApp(App):
         screen_manager.add_widget(AImatchingSystemScreen(name='moreinfo1'))
         screen_manager.add_widget(JobseekerHomePage(name='homepage1'))
         screen_manager.add_widget(EmployerHomePage(name='homepage2'))
-        screen_manager.add_widget(ChatBotScreen(name='chatbot1'))
+        screen_manager.add_widget(ResumeEnhancerScreen(name='chatbot1'))
         screen_manager.add_widget(UpdateJobScreen(name='update'))
         screen_manager.add_widget(ProfilePage(name='profile1'))
         screen_manager.add_widget(ComapanyProfilePage(name='profile2'))
