@@ -4,15 +4,16 @@
   },
   "job_title": "Software Engineer",
   "location": "London",
-  "requirements": [
+  "salary": "RM2,000",
+  "job_type": "Internship",
+  "job_requirements": [
     "Python",
     "HTML",
     "CSS",
     "JavaScript",
     "React"
   ],
-  "salary": "RM2,000",
-  "job_type": "Internship"
+  "url": "https://www.jobstreet.com.my/en/job/fresh-junior-software-engineer-5445990?jobId=jobstreet-my-job-5445990&sectionRank=1&token=0~8daa39e9-3430-49e6-89da-7e7033cfb7de&searchPath=%2Fsoftware-engineer-jobs&fr=SRP%20View%20In%20New%20Tab"
 },
 {
   "_id": {
@@ -20,10 +21,13 @@
   },
   "job_title": "Data Analyst",
   "location": "London",
-  "requirements": [
+  "job_type": "Full-Time",
+  "salary": "RM3,500",
+  "job_requirements": [
     "Python",
     "MySQL"
-  ]
+  ],
+  "url": "https://www.jobstreet.com.my/en/job/procurement-data-analyst-5447323?jobId=jobstreet-my-job-5447323&sectionRank=2&token=0~ae3954c0-6558-44b3-be2c-54982688d60d&searchPath=%2Fdata-analyst-jobs&fr=SRP%20View%20In%20New%20Tab"
 },
 {
   "_id": {
@@ -31,11 +35,14 @@
   },
   "job_title": "Project Manager",
   "location": "New York",
-  "requirements": [
+  "job_type": "Part-Time",
+  "salary": "RM2,300",
+  "job_requirements": [
     "Data Analysis",
     "Financial Analysis",
     "Strategic Planning"
-  ]
+  ],
+  "url": "https://www.jobstreet.com.my/en/job/project-manager-10911208/origin/sg?jobId=jobstreet-sg-job-10911208&sectionRank=1&token=0~495c6d39-a0e2-4120-8e7f-cc70429da51f&fr=SRP%20Job%20Listing"
 },
 {
   "_id": {
@@ -43,8 +50,11 @@
   },
   "job_title": "Sales Executive",
   "location": "Singapore",
-  "requirements": [
+  "job_type": "Full-Time",
+  "salary": "RM4,000",
+  "job_requirements": [
     "Sales",
     "Marketing"
-  ]
+  ],
+  "url": "https://www.jobstreet.com.my/en/job/sales-executive-5446668?jobId=jobstreet-my-job-5446668&sectionRank=1&token=0~5dabd28b-d0dd-4055-bb35-fa38a082b6ef&fr=SRP%20Job%20Listing"
 }]

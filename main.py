@@ -1336,29 +1336,9 @@ class ResumeEnhancerScreen(Screen):
             self.history_label.text = "Error occurred while processing the resume: " + str(e)
 
         # Copy the processed file
-        src_file = r"/Users/jiaosai/Downloads/Kirby AndersonResumeComputerScience_enhanced1.pdf_enhanced.pdf"
-        dst_file = r"/Users/jiaosai/Downloads/Kirby AndersonResumeComputerScience_enhanced1.pdf_enhanced.pdf"
+        src_file = r"/Users/jiaosai/Desktop/Kirby_AndersonResumeComputerScience_enhanced1.pdf"
+        dst_file = r"/Users/jiaosai/Downloads/Kirby_AndersonResumeComputerScience_enhanced.pdf"
         shutil.copy(src_file, dst_file)
-    def process_resume(self, selected_file):
-        try:
-            # Read the selected PDF resume
-            with open(selected_file, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                text = ''
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-
-            # Create a new PDF file with the extracted text
-            output_file = selected_file.replace('.pdf', '_enhanced.pdf')
-            with open(output_file, 'wb') as file:
-                pdf_writer = PyPDF2.PdfWriter()
-                pdf_writer.addPage(PyPDF2.pdf.PageObject.create_blank())
-                pdf_writer.getPage(0).extract_text = lambda: text
-                pdf_writer.write(file)
-
-            self.history_label.text = "Resume processed successfully ! "
-        except Exception as e:
-            self.history_label.text = "Resume processed successfully ! "
 
     def show_file_chooser(self, instance):
         content = BoxLayout(orientation='vertical')
